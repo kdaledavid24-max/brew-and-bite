@@ -6,6 +6,7 @@ import '../../providers/theme_provider.dart';
 import '../../utils/app_colors.dart';
 import '../../widgets/category_card.dart';
 import '../../widgets/product_card.dart';
+import '../admin/admin_dashboard.dart';
 import 'category_screen.dart';
 
 /// Customer home screen with greeting, search, categories, and featured products
@@ -82,15 +83,33 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ],
                     ),
-                    // Dark mode toggle
-                    IconButton(
-                      onPressed: () {
-                        context.read<ThemeProvider>().toggleTheme();
-                      },
-                      icon: Icon(
-                        isDark ? Icons.light_mode : Icons.dark_mode,
-                        color: isDark ? AppColors.goldAccent : AppColors.coffeeBrown,
-                      ),
+                    Row(
+                      children: [
+                        IconButton(
+                          tooltip: 'Switch to Admin Dashboard',
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => const AdminDashboard()),
+                            );
+                          },
+                          icon: const Icon(
+                            Icons.admin_panel_settings_rounded,
+                            color: AppColors.electricBlue,
+                          ),
+                        ),
+                        // Dark mode toggle
+                        IconButton(
+                          onPressed: () {
+                            context.read<ThemeProvider>().toggleTheme();
+                          },
+                          icon: Icon(
+                            isDark ? Icons.light_mode : Icons.dark_mode,
+                            color: isDark ? AppColors.goldAccent : AppColors.coffeeBrown,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

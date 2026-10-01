@@ -72,22 +72,69 @@ class LocalStorageService {
   // ==================== SEED / FIRST-LAUNCH DATA ====================
 
   /// Insert default admin, categories, and sample products on first launch
+  // Default accounts including docx assigned group members (CSE101 Final Project)
+  static final List<UserModel> defaultDemoUsers = [
+    UserModel(
+      id: 1,
+      name: 'Admin',
+      email: AppConstants.adminEmail,
+      phone: '09171234567',
+      password: AppConstants.adminPassword,
+      role: AppConstants.roleAdmin,
+      createdAt: DateTime(2026, 1, 1),
+    ),
+    UserModel(
+      id: 2,
+      name: 'Kristian Dale',
+      email: 'kristian@brewandbite.com',
+      phone: '09171234567',
+      password: 'kristian123',
+      role: AppConstants.roleCustomer,
+      address: 'Unit 402, Sunshine Residences, Sampaloc, Manila',
+      createdAt: DateTime(2026, 1, 2),
+    ),
+    UserModel(
+      id: 3,
+      name: 'Stephanie',
+      email: 'stephanie@brewandbite.com',
+      phone: '09181234567',
+      password: 'stephanie123',
+      role: AppConstants.roleCustomer,
+      address: '15 Aurora Blvd, Quezon City',
+      createdAt: DateTime(2026, 1, 3),
+    ),
+    UserModel(
+      id: 4,
+      name: 'Melea',
+      email: 'melea@brewandbite.com',
+      phone: '09191234567',
+      password: 'melea123',
+      role: AppConstants.roleCustomer,
+      address: '88 Taft Ave, Pasay City',
+      createdAt: DateTime(2026, 1, 4),
+    ),
+  ];
+
+  /// Insert default admin, group members, categories, and sample products on first launch
   Future<void> _seedIfNeeded() async {
     final prefs = await SharedPreferences.getInstance();
-    if (prefs.getBool(_keySeeded) ?? false) return;
+    if (prefs.getBool(_keySeeded) ?? false) {
+      // Ensure default users exist even if already seeded before
+      final existingUsers = await _readList(_keyUsers);
+      bool updated = false;
+      for (final demoUser in defaultDemoUsers) {
+        if (!existingUsers.any((u) => u['email'] == demoUser.email)) {
+          existingUsers.add(demoUser.toMap());
+          updated = true;
+        }
+      }
+      if (updated) {
+        await _writeList(_keyUsers, existingUsers);
+      }
+      return;
+    }
 
-    // Default admin account
-    final users = <Map<String, dynamic>>[
-      UserModel(
-        id: 1,
-        name: 'Admin',
-        email: AppConstants.adminEmail,
-        phone: '09171234567',
-        password: AppConstants.adminPassword,
-        role: AppConstants.roleAdmin,
-        createdAt: DateTime.now(),
-      ).toMap(),
-    ];
+    final users = defaultDemoUsers.map((u) => u.toMap()).toList();
 
     // Default categories: Coffee, Salad, Pasta
     final categories = <Map<String, dynamic>>[
@@ -138,8 +185,15 @@ class LocalStorageService {
     await _ensureReady();
     final users = await _readList(_keyUsers);
     for (final row in users) {
-      if (row['email'] == email && row['password'] == password) {
+      if (row['email'].toString().toLowerCase() == email.toLowerCase() &&
+          row['password'] == password) {
         return UserModel.fromMap(row);
+      }
+    }
+    // Check fallback demo accounts
+    for (final demo in defaultDemoUsers) {
+      if (demo.email.toLowerCase() == email.toLowerCase() && demo.password == password) {
+        return demo;
       }
     }
     return null;
@@ -150,7 +204,14 @@ class LocalStorageService {
     await _ensureReady();
     final users = await _readList(_keyUsers);
     for (final row in users) {
-      if (row['email'] == email) return UserModel.fromMap(row);
+      if (row['email'].toString().toLowerCase() == email.toLowerCase()) {
+        return UserModel.fromMap(row);
+      }
+    }
+    for (final demo in defaultDemoUsers) {
+      if (demo.email.toLowerCase() == email.toLowerCase()) {
+        return demo;
+      }
     }
     return null;
   }
@@ -161,6 +222,9 @@ class LocalStorageService {
     final users = await _readList(_keyUsers);
     for (final row in users) {
       if (row['id'] == id) return UserModel.fromMap(row);
+    }
+    for (final demo in defaultDemoUsers) {
+      if (demo.id == id) return demo;
     }
     return null;
   }

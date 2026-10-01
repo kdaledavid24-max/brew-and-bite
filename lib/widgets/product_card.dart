@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/product_model.dart';
+import '../providers/cart_provider.dart';
 import '../utils/app_colors.dart';
 import '../utils/constants.dart';
 import '../screens/customer/product_details_screen.dart';
 
-/// Product card widget for displaying products in a grid
+/// Aesthetic Foodpanda-style Product card with quick Add button
 class ProductCard extends StatelessWidget {
   final ProductModel product;
 
@@ -23,87 +25,175 @@ class ProductCard extends StatelessWidget {
           ),
         );
       },
-      child: Card(
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurface : Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.08)
+                : AppColors.softBorder,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
         clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Product image placeholder
+            // Product image area with category gradient and rating badge
             Expanded(
-              flex: 3,
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      _getCategoryColor().withValues(alpha: 0.3),
-                      _getCategoryColor().withValues(alpha: 0.6),
-                    ],
+              flex: 5,
+              child: Stack(
+                children: [
+                  Container(
+                    width: double.infinity,
+                    height: double.infinity,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          _getCategoryColor().withValues(alpha: isDark ? 0.25 : 0.15),
+                          _getCategoryColor().withValues(alpha: isDark ? 0.45 : 0.35),
+                        ],
+                      ),
+                    ),
+                    child: Center(
+                      child: Icon(
+                        _getCategoryIcon(),
+                        size: 48,
+                        color: _getCategoryColor(),
+                      ),
+                    ),
                   ),
-                ),
-                child: Center(
-                  child: Icon(
-                    _getCategoryIcon(),
-                    size: 48,
-                    color: _getCategoryColor(),
+                  // Rating tag
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.1),
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.star_rounded,
+                              size: 14, color: AppColors.warning),
+                          const SizedBox(width: 3),
+                          Text(
+                            product.rating.toStringAsFixed(1),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.midnightNavy,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
-            // Product info
+
+            // Product Information
             Expanded(
-              flex: 2,
+              flex: 4,
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      product.name,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? AppColors.darkText : AppColors.lightText,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          product.name,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: isDark
+                                ? AppColors.darkText
+                                : AppColors.midnightNavy,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          product.description,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isDark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.lightTextSecondary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      product.description,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const Spacer(),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
                           '${AppConstants.currencySymbol}${product.price.toStringAsFixed(0)}',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: isDark ? AppColors.goldAccent : AppColors.coffeeBrown,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.electricBlue,
                           ),
                         ),
-                        Row(
-                          children: [
-                            Icon(Icons.star, size: 14, color: AppColors.orangeAccent),
-                            const SizedBox(width: 2),
-                            Text(
-                              product.rating.toStringAsFixed(1),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                        // Quick Foodpanda-style "+" Add button
+                        InkWell(
+                          onTap: () {
+                            context.read<CartProvider>().addItem(product);
+                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Added ${product.name} to cart!'),
+                                duration: const Duration(seconds: 1),
+                                behavior: SnackBarBehavior.floating,
                               ),
+                            );
+                          },
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: AppColors.electricBlue,
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.electricBlue
+                                      .withValues(alpha: 0.3),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
                             ),
-                          ],
+                            child: const Icon(
+                              Icons.add_rounded,
+                              size: 18,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -118,7 +208,6 @@ class ProductCard extends StatelessWidget {
   }
 
   Color _getCategoryColor() {
-    // Determine color based on category ID
     switch (product.categoryId) {
       case 1:
         return AppColors.coffeeColor;
@@ -127,20 +216,20 @@ class ProductCard extends StatelessWidget {
       case 3:
         return AppColors.pastaColor;
       default:
-        return AppColors.coffeeBrown;
+        return AppColors.electricBlue;
     }
   }
 
   IconData _getCategoryIcon() {
     switch (product.categoryId) {
       case 1:
-        return Icons.coffee;
+        return Icons.coffee_rounded;
       case 2:
-        return Icons.eco;
+        return Icons.eco_rounded;
       case 3:
-        return Icons.dinner_dining;
+        return Icons.dinner_dining_rounded;
       default:
-        return Icons.fastfood;
+        return Icons.fastfood_rounded;
     }
   }
 }

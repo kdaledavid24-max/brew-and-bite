@@ -4,6 +4,7 @@ import 'providers/auth_provider.dart';
 import 'providers/cart_provider.dart';
 import 'providers/product_provider.dart';
 import 'providers/theme_provider.dart';
+import 'providers/order_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/customer/main_screen.dart';
 import 'screens/admin/admin_dashboard.dart';
@@ -15,7 +16,7 @@ void main() {
 }
 
 /// Brew & Bite - Coffee Shop Food Ordering System
-/// Main application widget
+/// CSE101 Final Project - Group 4 (Kristian Dale, Stephanie, Melea)
 class BrewAndBiteApp extends StatelessWidget {
   const BrewAndBiteApp({super.key});
 
@@ -27,6 +28,8 @@ class BrewAndBiteApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()..init()),
         ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => ProductProvider()),
+        // Shared local in-memory order provider for Customer and Admin
+        ChangeNotifierProvider(create: (_) => OrderProvider()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
@@ -37,7 +40,8 @@ class BrewAndBiteApp extends StatelessWidget {
                 debugShowCheckedModeBanner: false,
                 theme: AppTheme.lightTheme,
                 darkTheme: AppTheme.darkTheme,
-                themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+                themeMode:
+                    themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
                 home: _getHomeScreen(authProvider),
               );
             },

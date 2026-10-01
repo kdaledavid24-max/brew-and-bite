@@ -1,19 +1,18 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../services/order_service.dart';
+import '../../providers/order_provider.dart';
 import '../../models/order_model.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/constants.dart';
 import '../../widgets/order_card.dart';
 import 'order_details_screen.dart';
 
-/// Orders screen with tabs for Active, Completed, and Cancelled orders.
+/// Customer My Orders Screen
 ///
-/// The list auto-refreshes every few seconds, so when the admin updates
-/// an order status the customer sees the change without doing anything.
+/// Reactively reads orders directly from shared [OrderProvider].
+/// Whenever an Admin updates any order status, this screen rebuilds
+/// immediately via ChangeNotifier.
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
 
@@ -21,166 +20,179 @@ class OrdersScreen extends StatefulWidget {
   State<OrdersScreen> createState() => _OrdersScreenState();
 }
 
-class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderStateMixin {
+class _OrdersScreenState extends State<OrdersScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final OrderService _orderService = OrderService();
-  List<OrderModel> _orders = [];
-  bool _isLoading = true;
-  Timer? _refreshTimer;
+  final List<String> _tabs = const ['All', 'Active', 'Completed', 'Cancelled'];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-    _loadOrders();
-
-    // Auto-refresh so admin status updates show up live
-    _refreshTimer = Timer.periodic(const Duration(seconds: 4), (_) {
-      if (mounted) _loadOrders(silent: true);
-    });
+    _tabController = TabController(length: _tabs.length, vsync: this);
   }
 
   @override
   void dispose() {
-    _refreshTimer?.cancel();
     _tabController.dispose();
     super.dispose();
   }
 
-  /// Load the customer's orders.
-  /// [silent] = refresh in the background without showing the spinner.
-  Future<void> _loadOrders({bool silent = false}) async {
-    if (!silent && mounted) setState(() => _isLoading = true);
-    try {
-      final user = context.read<AuthProvider>().currentUser;
-      if (user != null) {
-        _orders = await _orderService.getOrdersByUser(user.id!);
+  List<Order> _filterOrders(List<Order> allOrders, String tab, int? userId, String? userName) {
+    // Show orders placed by this customer (or all if demo testing)
+    final customerOrders = allOrders.where((o) {
+      if (userId != null && o.userId != null) {
+        return o.userId == userId;
       }
-    } catch (e) {
-      // Keep the previous list if loading fails
-    }
-    if (mounted) setState(() => _isLoading = false);
-  }
+      if (userName != null && userName.isNotEmpty) {
+        return o.customerName.toLowerCase().contains(userName.toLowerCase());
+      }
+      return true;
+    }).toList();
 
-  List<OrderModel> _getFilteredOrders(String tab) {
+    // Fallback: If customer has placed 0 orders, show all active demo orders so user has items to track
+    final ordersToDisplay = customerOrders.isNotEmpty ? customerOrders : allOrders;
+
     switch (tab) {
       case 'Active':
-        return _orders.where((o) =>
-            o.status != AppConstants.statusCompleted &&
-            o.status != AppConstants.statusDelivered &&
-            o.status != AppConstants.statusCancelled).toList();
+        return ordersToDisplay
+            .where((o) =>
+                o.status != AppConstants.statusCompleted &&
+                o.status != AppConstants.statusDelivered &&
+                o.status != AppConstants.statusCancelled)
+            .toList();
       case 'Completed':
-        return _orders.where((o) =>
-            o.status == AppConstants.statusCompleted ||
-            o.status == AppConstants.statusDelivered).toList();
+        return ordersToDisplay
+            .where((o) =>
+                o.status == AppConstants.statusCompleted ||
+                o.status == AppConstants.statusDelivered)
+            .toList();
       case 'Cancelled':
-        return _orders.where((o) => o.status == AppConstants.statusCancelled).toList();
+        return ordersToDisplay
+            .where((o) => o.status == AppConstants.statusCancelled)
+            .toList();
+      case 'All':
       default:
-        return _orders;
+        return ordersToDisplay;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final currentUser = context.watch<AuthProvider>().currentUser;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Orders'),
         bottom: TabBar(
           controller: _tabController,
-          tabs: const [
-            Tab(text: 'Active'),
-            Tab(text: 'Completed'),
-            Tab(text: 'Cancelled'),
-          ],
-          labelColor: isDark ? AppColors.goldAccent : AppColors.coffeeBrown,
-          unselectedLabelColor: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-          indicatorColor: isDark ? AppColors.goldAccent : AppColors.coffeeBrown,
+          isScrollable: false,
+          indicatorColor: AppColors.electricBlue,
+          indicatorWeight: 3,
+          labelColor: isDark ? AppColors.skyAccent : AppColors.electricBlue,
+          unselectedLabelColor: isDark
+              ? AppColors.darkTextSecondary
+              : AppColors.lightTextSecondary,
+          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          tabs: _tabs.map((tab) => Tab(text: tab)).toList(),
         ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : TabBarView(
-              controller: _tabController,
-              children: [
-                _buildOrdersList('Active', isDark),
-                _buildOrdersList('Completed', isDark),
-                _buildOrdersList('Cancelled', isDark),
-              ],
-            ),
+      body: Consumer<OrderProvider>(
+        builder: (context, orderProvider, child) {
+          return TabBarView(
+            controller: _tabController,
+            children: _tabs.map((tab) {
+              final filtered = _filterOrders(
+                orderProvider.orders,
+                tab,
+                currentUser?.id,
+                currentUser?.name,
+              );
+              return _buildOrdersList(tab, filtered, isDark);
+            }).toList(),
+          );
+        },
+      ),
     );
   }
 
-  Widget _buildOrdersList(String tab, bool isDark) {
-    final filteredOrders = _getFilteredOrders(tab);
-
-    if (filteredOrders.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: _loadOrders,
-        child: ListView(
-          children: [
-            SizedBox(height: MediaQuery.of(context).size.height * 0.3),
-            Center(
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.receipt_long_outlined,
-                    size: 64,
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    tab == 'Active'
-                        ? "You don't have any active orders."
-                        : tab == 'Completed'
-                            ? "You don't have any completed orders yet."
-                            : "You don't have any cancelled orders.",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                    ),
-                  ),
-                  if (tab == 'Active') ...[
-                    const SizedBox(height: 16),
-                    Text(
-                      'Start ordering to see your orders here.',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                      ),
-                    ),
-                  ],
-                ],
+  Widget _buildOrdersList(String tab, List<Order> orders, bool isDark) {
+    if (orders.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.05)
+                      : AppColors.softIce,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.receipt_long_outlined,
+                  size: 40,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.lightTextSecondary,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 18),
+              Text(
+                tab == 'Active'
+                    ? "No active orders right now"
+                    : tab == 'Completed'
+                        ? "No completed orders yet"
+                        : tab == 'Cancelled'
+                            ? "No cancelled orders"
+                            : "No orders found",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? AppColors.darkText : AppColors.midnightNavy,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "Orders placed will appear here with live tracking.",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.lightTextSecondary,
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: _loadOrders,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: filteredOrders.length,
-        itemBuilder: (context, index) {
-          final order = filteredOrders[index];
-          return OrderCard(
-            order: order,
-            onTap: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => OrderDetailsScreen(orderId: order.id!),
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      itemCount: orders.length,
+      itemBuilder: (context, index) {
+        final order = orders[index];
+        return OrderCard(
+          order: order,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => OrderDetailsScreen(
+                  orderId: order.id,
+                  orderNumber: order.id,
                 ),
-              );
-              _loadOrders(); // Refresh after returning
-            },
-          );
-        },
-      ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

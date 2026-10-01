@@ -1,22 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../../providers/order_provider.dart';
 import '../../models/order_model.dart';
-import '../../models/order_item_model.dart';
-import '../../services/order_service.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/constants.dart';
 import 'admin_order_details_screen.dart';
 
-/// Admin order management screen.
+/// Admin Orders Management Screen
 ///
-/// Lists every customer order stored on this device. For each order the
-/// admin can:
-///  - tap the card to open the full tracking screen (items, customer,
-///    timeline, status controls), or
-///  - use the quick status dropdown to update it right here.
-///
-/// Both actions write to local storage, so the customer's Orders screen
-/// shows the new status right away.
+/// Displays every customer order currently stored in local memory.
+/// Reactively updates via [OrderProvider]. Status changes are reflected
+/// immediately across the entire app.
 class ManageOrdersScreen extends StatefulWidget {
   const ManageOrdersScreen({super.key});
 
@@ -25,38 +20,19 @@ class ManageOrdersScreen extends StatefulWidget {
 }
 
 class _ManageOrdersScreenState extends State<ManageOrdersScreen> {
-  final OrderService _orderService = OrderService();
-  List<OrderModel> _orders = [];
+  String _selectedFilter = 'All';
 
-  /// Items for each order, keyed by order ID (used for the card summary)
-  Map<int, List<OrderItemModel>> _itemsByOrder = {};
-  bool _isLoading = true;
+  final List<String> _filterOptions = const [
+    'All',
+    'Pending',
+    'Confirmed',
+    'Preparing',
+    'Ready',
+    'Completed',
+    'Cancelled',
+  ];
 
-  @override
-  void initState() {
-    super.initState();
-    _loadOrders();
-  }
-
-  Future<void> _loadOrders() async {
-    setState(() => _isLoading = true);
-    try {
-      _orders = await _orderService.getAllOrders();
-
-      // Load the items of every order so we can show what was ordered
-      final itemsByOrder = <int, List<OrderItemModel>>{};
-      for (final order in _orders) {
-        itemsByOrder[order.id!] = await _orderService.getOrderItems(order.id!);
-      }
-      _itemsByOrder = itemsByOrder;
-    } catch (e) {
-      // Keep the previous list if loading fails
-    }
-    if (mounted) setState(() => _isLoading = false);
-  }
-
-  /// Status options for an order (differs for pickup vs delivery)
-  List<String> _getStatusesForOrder(OrderModel order) {
+  List<String> _getAvailableStatuses(Order order) {
     if (order.orderType == AppConstants.orderTypeDelivery) {
       return [
         AppConstants.statusPending,
@@ -77,250 +53,441 @@ class _ManageOrdersScreenState extends State<ManageOrdersScreen> {
     ];
   }
 
-  /// "Biscoff Latte x2, Chicken Salad x1"
-  String _itemsSummary(List<OrderItemModel> items) {
-    if (items.isEmpty) return 'No items';
-    return items
-        .map((item) => '${item.productName} x${item.quantity}')
-        .join(', ');
-  }
-
-  /// Open the full tracking screen for one order
-  Future<void> _openTrackingScreen(OrderModel order) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AdminOrderDetailsScreen(orderId: order.id!),
-      ),
-    );
-    // Reload so any status change made inside is reflected here
-    _loadOrders();
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final orderProvider = context.watch<OrderProvider>();
+
+    // Filter orders
+    List<Order> filteredOrders;
+    if (_selectedFilter == 'All') {
+      filteredOrders = orderProvider.orders;
+    } else {
+      filteredOrders = orderProvider.orders.where((o) {
+        if (_selectedFilter == 'Ready') {
+          return o.status == AppConstants.statusReady ||
+              o.status == AppConstants.statusOutForDelivery;
+        }
+        if (_selectedFilter == 'Completed') {
+          return o.status == AppConstants.statusCompleted ||
+              o.status == AppConstants.statusDelivered;
+        }
+        return o.status.toLowerCase() == _selectedFilter.toLowerCase();
+      }).toList();
+    }
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Manage Orders'),
+        actions: [
+          IconButton(
+            tooltip: 'Reset to Sample Orders',
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: () {
+              orderProvider.resetToSampleData();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Orders reset to demo sample data.')),
+              );
+            },
+          ),
+        ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _orders.isEmpty
-              ? Center(
-                  child: Text(
-                    'No orders yet.\nOrders placed by customers will appear here.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: isDark ? AppColors.darkText : AppColors.lightText,
-                    ),
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadOrders,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _orders.length,
-                    itemBuilder: (context, index) {
-                      final order = _orders[index];
-                      return _buildOrderCard(context, isDark, order);
-                    },
-                  ),
-                ),
-    );
-  }
-
-  Widget _buildOrderCard(BuildContext context, bool isDark, OrderModel order) {
-    final statuses = _getStatusesForOrder(order);
-    final items = _itemsByOrder[order.id] ?? [];
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => _openTrackingScreen(order),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      order.orderNumber,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color:
-                            isDark ? AppColors.goldAccent : AppColors.coffeeBrown,
+      body: Column(
+        children: [
+          // Filter Chips Bar
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: _filterOptions.map((filter) {
+                  final isSelected = _selectedFilter == filter;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(filter),
+                      selected: isSelected,
+                      selectedColor: AppColors.electricBlue,
+                      backgroundColor: isDark
+                          ? AppColors.darkSurface
+                          : AppColors.softIce,
+                      labelStyle: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.w500,
+                        color: isSelected
+                            ? Colors.white
+                            : (isDark
+                                ? AppColors.darkText
+                                : AppColors.midnightNavy),
                       ),
-                    ),
-                  ),
-                  _buildStatusChip(order.status),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                DateFormat('MMM dd, yyyy • hh:mm a').format(order.createdAt),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: isDark
-                      ? AppColors.darkTextSecondary
-                      : AppColors.lightTextSecondary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                order.customerName,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: isDark ? AppColors.darkText : AppColors.lightText,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${order.orderType} • ${order.paymentMethod} • '
-                '${AppConstants.currencySymbol}${order.total.toStringAsFixed(0)}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: isDark
-                      ? AppColors.darkTextSecondary
-                      : AppColors.lightTextSecondary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              // What the customer ordered
-              Text(
-                'Items: ${_itemsSummary(items)}',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontStyle: FontStyle.italic,
-                  color: isDark
-                      ? AppColors.darkTextSecondary
-                      : AppColors.lightTextSecondary,
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Divider(height: 1),
-              const SizedBox(height: 8),
-              // Quick status update + hint to tap for full details
-              Row(
-                children: [
-                  Text(
-                    'Status: ',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: isDark
-                          ? AppColors.darkTextSecondary
-                          : AppColors.lightTextSecondary,
-                    ),
-                  ),
-                  Expanded(
-                    child: DropdownButton<String>(
-                      value: order.status,
-                      isExpanded: true,
-                      underline: const SizedBox(),
-                      items: statuses.map((status) {
-                        return DropdownMenuItem(
-                          value: status,
-                          child: Text(
-                            status,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: _getStatusColor(status),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (newStatus) async {
-                        if (newStatus != null && newStatus != order.status) {
-                          final messenger = ScaffoldMessenger.of(context);
-                          await _orderService.updateOrderStatus(
-                              order.id!, newStatus);
-                          _loadOrders();
-                          messenger.showSnackBar(
-                            SnackBar(
-                              content:
-                                  Text('Order status updated to $newStatus.'),
-                            ),
-                          );
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(
+                          color: isSelected
+                              ? AppColors.electricBlue
+                              : (isDark
+                                  ? Colors.white12
+                                  : AppColors.softBorder),
+                        ),
+                      ),
+                      onSelected: (selected) {
+                        if (selected) {
+                          setState(() => _selectedFilter = filter);
                         }
                       },
                     ),
-                  ),
-                ],
+                  );
+                }).toList(),
               ),
-              const SizedBox(height: 4),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Text(
-                    'Tap card to track order',
+            ),
+          ),
+          const Divider(height: 1),
+
+          // Orders List
+          Expanded(
+            child: filteredOrders.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.inbox_rounded,
+                            size: 64,
+                            color: isDark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.lightTextSecondary,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            _selectedFilter == 'All'
+                                ? 'No orders in memory yet'
+                                : 'No orders with status "$_selectedFilter"',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: isDark
+                                  ? AppColors.darkText
+                                  : AppColors.midnightNavy,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'When customers place orders, they appear here live.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.lightTextSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: filteredOrders.length,
+                    itemBuilder: (context, index) {
+                      final order = filteredOrders[index];
+                      return _buildAdminOrderCard(
+                        context,
+                        order,
+                        orderProvider,
+                        isDark,
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdminOrderCard(
+    BuildContext context,
+    Order order,
+    OrderProvider orderProvider,
+    bool isDark,
+  ) {
+    final statusColor = AppColors.getStatusColor(order.status);
+    final statusOptions = _getAvailableStatuses(order);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : AppColors.softBorder,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Order number & status badge
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.electricBlue.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        order.orderNumber,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.electricBlue,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      order.orderType,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: order.orderType == AppConstants.orderTypeDelivery
+                            ? AppColors.electricBlue
+                            : AppColors.orangeAccent,
+                      ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: statusColor.withValues(alpha: 0.3), width: 1),
+                  ),
+                  child: Text(
+                    order.status,
                     style: TextStyle(
-                      fontSize: 11,
-                      color: isDark
-                          ? AppColors.darkTextSecondary
-                          : AppColors.lightTextSecondary,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.bold,
+                      color: statusColor,
                     ),
                   ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    Icons.touch_app_outlined,
-                    size: 14,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            // Date & customer
+            Text(
+              DateFormat('MMM dd, yyyy • hh:mm a').format(order.createdAt),
+              style: TextStyle(
+                fontSize: 11.5,
+                color: isDark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.lightTextSecondary,
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // Customer Name & Phone
+            Row(
+              children: [
+                Icon(Icons.person_rounded,
+                    size: 16,
+                    color: isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.lightTextSecondary),
+                const SizedBox(width: 6),
+                Text(
+                  order.customerName,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? AppColors.darkText : AppColors.midnightNavy,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Icon(Icons.phone_rounded,
+                    size: 15,
+                    color: isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.lightTextSecondary),
+                const SizedBox(width: 4),
+                Text(
+                  order.customerPhone,
+                  style: TextStyle(
+                    fontSize: 12,
                     color: isDark
                         ? AppColors.darkTextSecondary
                         : AppColors.lightTextSecondary,
                   ),
-                ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+
+            // Items breakdown
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.04)
+                    : AppColors.softIce,
+                borderRadius: BorderRadius.circular(10),
               ),
-            ],
-          ),
+              child: Text(
+                order.itemsSummary,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: isDark ? AppColors.darkText : AppColors.midnightNavy,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // Total & quick action row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${order.paymentMethod} • Total:',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isDark
+                            ? AppColors.darkTextSecondary
+                            : AppColors.lightTextSecondary,
+                      ),
+                    ),
+                    Text(
+                      '${AppConstants.currencySymbol}${order.total.toStringAsFixed(0)}',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.electricBlue,
+                      ),
+                    ),
+                  ],
+                ),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            AdminOrderDetailsScreen(orderId: order.id),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.open_in_new_rounded, size: 14),
+                  label: const Text('VIEW ORDER'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.electricBlue,
+                    foregroundColor: Colors.white,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    textStyle: const TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.bold),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 8),
+
+            // Quick Status Change Dropdown
+            Row(
+              children: [
+                Text(
+                  'Change Status: ',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.lightTextSecondary,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.darkCard : AppColors.softIce,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: statusColor.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: statusOptions.contains(order.status)
+                            ? order.status
+                            : statusOptions.first,
+                        isExpanded: true,
+                        icon: const Icon(Icons.arrow_drop_down_rounded),
+                        items: statusOptions.map((status) {
+                          return DropdownMenuItem(
+                            value: status,
+                            child: Text(
+                              status,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.getStatusColor(status),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (newStatus) {
+                          if (newStatus != null &&
+                              newStatus != order.status) {
+                            orderProvider.updateOrderStatus(
+                                order.id, newStatus);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                    'Order ${order.orderNumber} updated to $newStatus'),
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
-  }
-
-  Widget _buildStatusChip(String status) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: _getStatusColor(status).withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        status,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: _getStatusColor(status),
-        ),
-      ),
-    );
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case AppConstants.statusPending:
-        return AppColors.warning;
-      case AppConstants.statusConfirmed:
-        return AppColors.info;
-      case AppConstants.statusPreparing:
-        return AppColors.orangeAccent;
-      case AppConstants.statusReady:
-      case AppConstants.statusOutForDelivery:
-        return AppColors.success;
-      case AppConstants.statusCompleted:
-      case AppConstants.statusDelivered:
-        return AppColors.success;
-      case AppConstants.statusCancelled:
-        return AppColors.error;
-      default:
-        return AppColors.info;
-    }
   }
 }

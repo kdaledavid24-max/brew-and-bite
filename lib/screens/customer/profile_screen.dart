@@ -5,6 +5,7 @@ import '../../providers/theme_provider.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/constants.dart';
 import '../auth/login_screen.dart';
+import '../admin/admin_dashboard.dart';
 import 'orders_screen.dart';
 
 /// Profile screen showing user information and settings
@@ -94,14 +95,14 @@ class ProfileScreen extends StatelessWidget {
             _buildInfoCard(
               context,
               isDark,
-              title: 'Settings',
+              title: 'Settings & Demo Controls',
               children: [
                 _buildActionRow(
                   context,
                   isDark,
-                  icon: isDark ? Icons.light_mode : Icons.dark_mode,
+                  icon: isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
                   title: 'Dark Mode',
-                  subtitle: isDark ? 'On' : 'Off',
+                  subtitle: isDark ? 'Dark blue midnight enabled' : 'Clean light enabled',
                   onTap: () => themeProvider.toggleTheme(),
                   showSwitch: true,
                   switchValue: isDark,
@@ -109,15 +110,37 @@ class ProfileScreen extends StatelessWidget {
                 _buildActionRow(
                   context,
                   isDark,
-                  icon: Icons.receipt_long_outlined,
+                  icon: Icons.receipt_long_rounded,
                   title: 'My Orders',
-                  subtitle: 'View order history',
+                  subtitle: 'Live order tracking & history',
                   onTap: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => const OrdersScreen()),
                     );
                   },
+                ),
+                _buildActionRow(
+                  context,
+                  isDark,
+                  icon: Icons.admin_panel_settings_rounded,
+                  title: 'Switch to Local Admin',
+                  subtitle: 'Open Admin Dashboard & live tracking',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const AdminDashboard()),
+                    );
+                  },
+                ),
+                _buildActionRow(
+                  context,
+                  isDark,
+                  icon: Icons.school_rounded,
+                  title: 'CSE101 Final Project Details',
+                  subtitle: 'Group 4: Kristian Dale, Stephanie, Melea',
+                  onTap: () => _showProjectDialog(context, isDark),
                 ),
               ],
             ),
@@ -394,4 +417,55 @@ class ProfileScreen extends StatelessWidget {
       ),
     );
   }
+
+  void _showProjectDialog(BuildContext context, bool isDark) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.school_rounded, color: AppColors.electricBlue),
+            SizedBox(width: 10),
+            Text('CSE101 Final Project'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Food Ordering App (Project #4)',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            const Text('Assigned Team Members:'),
+            const SizedBox(height: 4),
+            const Text(
+              '• Kristian Dale\n• Stephanie\n• Melea',
+              style: TextStyle(fontWeight: FontWeight.bold, height: 1.4),
+            ),
+            const Divider(height: 24),
+            const Text('Project Specifications:'),
+            const SizedBox(height: 4),
+            const Text(
+              '✓ In-memory state management (OrderProvider)\n'
+              '✓ Zero database (No Firebase, No SQL, No Supabase)\n'
+              '✓ Real-time status sync between Customer & Admin\n'
+              '✓ Aesthetic Dark Blue & Foodpanda styling\n'
+              '✓ Cart, Checkout, Order Tracking & Local Admin',
+              style: TextStyle(fontSize: 12, height: 1.5),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
 }
+

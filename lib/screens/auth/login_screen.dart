@@ -9,7 +9,8 @@ import '../customer/main_screen.dart';
 import '../admin/admin_dashboard.dart';
 import 'register_screen.dart';
 
-/// Login screen for both customers and admin
+/// Login screen for customers and local admin
+/// CSE101 Final Project - Group 4 (Kristian Dale, Stephanie, Melea)
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -30,14 +31,19 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  Future<void> _login() async {
-    if (!_formKey.currentState!.validate()) return;
+  Future<void> _login({String? email, String? password}) async {
+    final loginEmail = email ?? _emailController.text.trim();
+    final loginPass = password ?? _passwordController.text;
+
+    if (email == null) {
+      if (!_formKey.currentState!.validate()) return;
+    } else {
+      _emailController.text = loginEmail;
+      _passwordController.text = loginPass;
+    }
 
     final auth = context.read<AuthProvider>();
-    final success = await auth.login(
-      _emailController.text.trim(),
-      _passwordController.text,
-    );
+    final success = await auth.login(loginEmail, loginPass);
 
     if (!mounted) return;
 
@@ -55,7 +61,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(auth.error ?? 'Login failed.')),
+        SnackBar(content: Text(auth.error ?? 'Invalid email or password.')),
       );
     }
   }
@@ -67,90 +73,217 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 40),
-                // Logo
-                Center(
-                  child: Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      color: isDark ? AppColors.goldAccent : AppColors.coffeeBrown,
-                      shape: BoxShape.circle,
+                const SizedBox(height: 10),
+
+                // CSE101 Final Project Header Tag
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.darkSurface : AppColors.softIce,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: AppColors.electricBlue.withValues(alpha: 0.3),
                     ),
-                    child: const Icon(
-                      Icons.coffee,
-                      size: 48,
-                      color: Colors.white,
-                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: AppColors.electricBlue.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.school_rounded,
+                            size: 16, color: AppColors.electricBlue),
+                      ),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'CSE101 Final Project • Group 4',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.electricBlue,
+                              ),
+                            ),
+                            Text(
+                              'Kristian Dale • Stephanie • Melea',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.lightTextSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 24),
-                // App name
+
+                // Aesthetic Logo in Deep Navy Circle
+                Center(
+                  child: Container(
+                    width: 90,
+                    height: 90,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [AppColors.midnightNavy, AppColors.deepNavy],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.midnightNavy.withValues(alpha: 0.25),
+                          blurRadius: 18,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.coffee_rounded,
+                      size: 46,
+                      color: AppColors.skyAccent,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+
+                // App Brand Name
                 Text(
                   AppConstants.appName,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? AppColors.goldAccent : AppColors.coffeeBrown,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.5,
+                    color: isDark ? AppColors.darkText : AppColors.midnightNavy,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  AppConstants.tagline,
+                  'Local Food Ordering & Live Admin Tracking',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 14,
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                    fontSize: 13,
+                    color: isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.lightTextSecondary,
                   ),
                 ),
-                const SizedBox(height: 40),
-                // Welcome text
-                Text(
-                  'Welcome Back',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? AppColors.darkText : AppColors.lightText,
+                const SizedBox(height: 28),
+
+                // Quick Demo Accounts Section (1-Tap Demonstration)
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.darkSurface : Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.08)
+                          : AppColors.softBorder,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.flash_on_rounded,
+                              size: 16, color: AppColors.warning),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Quick Demo Accounts (1-Tap Login):',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: isDark
+                                  ? AppColors.darkText
+                                  : AppColors.midnightNavy,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _buildQuickLoginChip(
+                            label: 'Kristian (Customer)',
+                            icon: Icons.person_rounded,
+                            color: AppColors.electricBlue,
+                            onTap: () => _login(
+                              email: 'kristian@brewandbite.com',
+                              password: 'kristian123',
+                            ),
+                          ),
+                          _buildQuickLoginChip(
+                            label: 'Stephanie',
+                            icon: Icons.person_outline_rounded,
+                            color: const Color(0xFF0284C7),
+                            onTap: () => _login(
+                              email: 'stephanie@brewandbite.com',
+                              password: 'stephanie123',
+                            ),
+                          ),
+                          _buildQuickLoginChip(
+                            label: 'Melea',
+                            icon: Icons.person_outline_rounded,
+                            color: const Color(0xFF0284C7),
+                            onTap: () => _login(
+                              email: 'melea@brewandbite.com',
+                              password: 'melea123',
+                            ),
+                          ),
+                          _buildQuickLoginChip(
+                            label: '⚡ Local Admin',
+                            icon: Icons.admin_panel_settings_rounded,
+                            color: AppColors.orangeAccent,
+                            isFeatured: true,
+                            onTap: () => _login(
+                              email: AppConstants.adminEmail,
+                              password: AppConstants.adminPassword,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Sign in to continue',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                  ),
-                ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
+
                 // Email field
                 CustomTextField(
                   label: 'Email',
-                  hint: 'Enter your email',
+                  hint: 'admin@brewandbite.com or customer email',
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
-                  prefixIcon: Icons.email_outlined,
+                  prefixIcon: Icons.email_rounded,
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
                       return 'Email is required.';
-                    }
-                    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value.trim())) {
-                      return 'Please enter a valid email.';
                     }
                     return null;
                   },
                 ),
                 const SizedBox(height: 16),
+
                 // Password field
                 CustomTextField(
                   label: 'Password',
-                  hint: 'Enter your password',
+                  hint: 'Enter your password (e.g. admin123)',
                   controller: _passwordController,
                   isPassword: true,
                   obscureText: _obscurePassword,
@@ -159,7 +292,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       _obscurePassword = !_obscurePassword;
                     });
                   },
-                  prefixIcon: Icons.lock_outlined,
+                  prefixIcon: Icons.lock_rounded,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Password is required.';
@@ -167,36 +300,21 @@ class _LoginScreenState extends State<LoginScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 8),
-                // Forgot password
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Please contact admin to reset password.')),
-                      );
-                    },
-                    child: Text(
-                      'Forgot Password?',
-                      style: TextStyle(
-                        color: isDark ? AppColors.goldAccent : AppColors.coffeeBrown,
-                      ),
-                    ),
-                  ),
-                ),
                 const SizedBox(height: 24),
-                // Login button
+
+                // LOGIN BUTTON
                 Consumer<AuthProvider>(
                   builder: (context, auth, child) {
                     return CustomButton(
-                      text: 'LOGIN',
-                      onPressed: _login,
+                      text: 'SIGN IN',
+                      onPressed: () => _login(),
                       isLoading: auth.isLoading,
+                      icon: Icons.login_rounded,
                     );
                   },
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
+
                 // Register link
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -204,29 +322,74 @@ class _LoginScreenState extends State<LoginScreen> {
                     Text(
                       "Don't have an account? ",
                       style: TextStyle(
-                        color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                        fontSize: 13,
+                        color: isDark
+                            ? AppColors.darkTextSecondary
+                            : AppColors.lightTextSecondary,
                       ),
                     ),
                     GestureDetector(
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const RegisterScreen()),
+                          MaterialPageRoute(
+                              builder: (context) => const RegisterScreen()),
                         );
                       },
-                      child: Text(
+                      child: const Text(
                         'Register',
                         style: TextStyle(
+                          fontSize: 13,
                           fontWeight: FontWeight.bold,
-                          color: isDark ? AppColors.goldAccent : AppColors.coffeeBrown,
+                          color: AppColors.electricBlue,
                         ),
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 16),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickLoginChip({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+    bool isFeatured = false,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: isFeatured ? 0.18 : 0.10),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: color.withValues(alpha: isFeatured ? 0.5 : 0.25),
+            width: isFeatured ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isFeatured ? FontWeight.bold : FontWeight.w600,
+                color: color,
+              ),
+            ),
+          ],
         ),
       ),
     );

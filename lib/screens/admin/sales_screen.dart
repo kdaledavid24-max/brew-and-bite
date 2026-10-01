@@ -1,230 +1,252 @@
 import 'package:flutter/material.dart';
-import '../../services/order_service.dart';
+import 'package:provider/provider.dart';
+import '../../providers/order_provider.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/constants.dart';
 
 /// Admin sales and analytics screen
-class SalesScreen extends StatefulWidget {
+/// Dynamically computed from in-memory [OrderProvider]
+class SalesScreen extends StatelessWidget {
   const SalesScreen({super.key});
-
-  @override
-  State<SalesScreen> createState() => _SalesScreenState();
-}
-
-class _SalesScreenState extends State<SalesScreen> {
-  final OrderService _orderService = OrderService();
-  Map<String, dynamic> _stats = {};
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadStats();
-  }
-
-  Future<void> _loadStats() async {
-    setState(() => _isLoading = true);
-    try {
-      _stats = await _orderService.getDashboardStats();
-    } catch (e) {
-      // Handle error
-    }
-    if (mounted) setState(() => _isLoading = false);
-  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final orderProvider = context.watch<OrderProvider>();
+
+    final totalOrders = orderProvider.totalOrders;
+    final completedOrders = orderProvider.completedOrders;
+    final cancelledOrders = orderProvider.cancelledOrders;
+    final activeOrders = (totalOrders - completedOrders - cancelledOrders).clamp(0, 1000);
+    final totalSales = orderProvider.totalSales;
+    final todayOrders = orderProvider.todayOrdersCount;
+    final todaySales = orderProvider.todaySales;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sales Report'),
+        title: const Text('Sales & Order Analytics'),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadStats,
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Overview cards
-                    GridView.count(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 1.3,
-                      children: [
-                        _buildStatCard(
-                          'Total Orders',
-                          _stats['totalOrders']?.toString() ?? '0',
-                          Icons.shopping_bag_outlined,
-                          AppColors.coffeeBrown,
-                          isDark,
-                        ),
-                        _buildStatCard(
-                          'Completed',
-                          _stats['completedOrders']?.toString() ?? '0',
-                          Icons.check_circle_outline,
-                          AppColors.success,
-                          isDark,
-                        ),
-                        _buildStatCard(
-                          'Cancelled',
-                          _stats['cancelledOrders']?.toString() ?? '0',
-                          Icons.cancel_outlined,
-                          AppColors.error,
-                          isDark,
-                        ),
-                        _buildStatCard(
-                          'Total Sales',
-                          '${AppConstants.currencySymbol}${_stats['totalSales']?.toStringAsFixed(0) ?? '0'}',
-                          Icons.payments_outlined,
-                          AppColors.orangeAccent,
-                          isDark,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Overview cards
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 1.35,
+              children: [
+                _buildStatCard(
+                  'Total Orders',
+                  totalOrders.toString(),
+                  Icons.receipt_long_rounded,
+                  AppColors.electricBlue,
+                  isDark,
+                ),
+                _buildStatCard(
+                  'Completed Orders',
+                  completedOrders.toString(),
+                  Icons.check_circle_rounded,
+                  AppColors.success,
+                  isDark,
+                ),
+                _buildStatCard(
+                  'Cancelled',
+                  cancelledOrders.toString(),
+                  Icons.cancel_rounded,
+                  AppColors.error,
+                  isDark,
+                ),
+                _buildStatCard(
+                  'Total Sales',
+                  '${AppConstants.currencySymbol}${totalSales.toStringAsFixed(0)}',
+                  Icons.payments_rounded,
+                  AppColors.success,
+                  isDark,
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
 
-                    // Today's summary
-                    Text(
-                      'Today\'s Summary',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? AppColors.darkText : AppColors.lightText,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          children: [
-                            _buildSummaryRow(
-                              'Orders Today',
-                              _stats['todayOrders']?.toString() ?? '0',
-                              isDark,
-                            ),
-                            const Divider(),
-                            _buildSummaryRow(
-                              'Sales Today',
-                              '${AppConstants.currencySymbol}${_stats['todaySales']?.toStringAsFixed(0) ?? '0'}',
-                              isDark,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Simple bar chart representation
-                    Text(
-                      'Order Status Breakdown',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? AppColors.darkText : AppColors.lightText,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildStatusBar(
-                      'Completed',
-                      _stats['completedOrders']?.toInt() ?? 0,
-                      _stats['totalOrders']?.toInt() ?? 1,
-                      AppColors.success,
-                      isDark,
-                    ),
-                    const SizedBox(height: 8),
-                    _buildStatusBar(
-                      'Cancelled',
-                      _stats['cancelledOrders']?.toInt() ?? 0,
-                      _stats['totalOrders']?.toInt() ?? 1,
-                      AppColors.error,
-                      isDark,
-                    ),
-                    const SizedBox(height: 8),
-                    _buildStatusBar(
-                      'Active',
-                      ((_stats['totalOrders']?.toInt() ?? 0) -
-                              (_stats['completedOrders']?.toInt() ?? 0) -
-                              (_stats['cancelledOrders']?.toInt() ?? 0))
-                          .clamp(0, 1000),
-                      _stats['totalOrders']?.toInt() ?? 1,
-                      AppColors.info,
-                      isDark,
-                    ),
-                  ],
+            // Today's summary
+            Text(
+              "Today's Summary",
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: isDark ? AppColors.darkText : AppColors.midnightNavy,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkSurface : Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : AppColors.softBorder,
                 ),
               ),
+              child: Column(
+                children: [
+                  _buildSummaryRow(
+                    'Orders Today',
+                    '$todayOrders orders',
+                    isDark,
+                  ),
+                  const Divider(height: 20),
+                  _buildSummaryRow(
+                    'Sales Today (Completed Only)',
+                    '${AppConstants.currencySymbol}${todaySales.toStringAsFixed(0)}',
+                    isDark,
+                  ),
+                ],
+              ),
             ),
-    );
-  }
+            const SizedBox(height: 24),
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color, bool isDark) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 32, color: color),
-            const SizedBox(height: 8),
+            // Order Status Breakdown Bar
             Text(
-              value,
+              'Order Status Breakdown',
               style: TextStyle(
-                fontSize: 24,
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: isDark ? AppColors.darkText : AppColors.lightText,
+                color: isDark ? AppColors.darkText : AppColors.midnightNavy,
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 12,
-                color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkSurface : Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : AppColors.softBorder,
+                ),
+              ),
+              child: Column(
+                children: [
+                  _buildStatusBar(
+                    'Completed',
+                    completedOrders,
+                    totalOrders > 0 ? totalOrders : 1,
+                    AppColors.success,
+                    isDark,
+                  ),
+                  const SizedBox(height: 14),
+                  _buildStatusBar(
+                    'Active / In Progress',
+                    activeOrders,
+                    totalOrders > 0 ? totalOrders : 1,
+                    AppColors.electricBlue,
+                    isDark,
+                  ),
+                  const SizedBox(height: 14),
+                  _buildStatusBar(
+                    'Cancelled',
+                    cancelledOrders,
+                    totalOrders > 0 ? totalOrders : 1,
+                    AppColors.error,
+                    isDark,
+                  ),
+                ],
               ),
             ),
+            const SizedBox(height: 30),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSummaryRow(String label, String value, bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
+  Widget _buildStatCard(
+      String title, String value, IconData icon, Color color, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : AppColors.softBorder,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
             ),
+            child: Icon(icon, color: color, size: 20),
           ),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: isDark ? AppColors.darkText : AppColors.lightText,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: isDark ? AppColors.darkText : AppColors.midnightNavy,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.lightTextSecondary,
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildStatusBar(String label, int count, int total, Color color, bool isDark) {
+  Widget _buildSummaryRow(String label, String value, bool isDark) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            color: isDark
+                ? AppColors.darkTextSecondary
+                : AppColors.lightTextSecondary,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+            color: isDark ? AppColors.darkText : AppColors.midnightNavy,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusBar(
+      String label, int count, int total, Color color, bool isDark) {
     final percentage = total > 0 ? (count / total).clamp(0.0, 1.0) : 0.0;
 
     return Column(
@@ -236,25 +258,29 @@ class _SalesScreenState extends State<SalesScreen> {
             Text(
               label,
               style: TextStyle(
-                fontSize: 14,
-                color: isDark ? AppColors.darkText : AppColors.lightText,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: isDark ? AppColors.darkText : AppColors.midnightNavy,
               ),
             ),
             Text(
-              '$count orders',
+              '${(percentage * 100).toInt()}% ($count orders)',
               style: TextStyle(
                 fontSize: 12,
-                color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                fontWeight: FontWeight.bold,
+                color: color,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         ClipRRect(
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(6),
           child: LinearProgressIndicator(
             value: percentage,
-            backgroundColor: isDark ? AppColors.darkSurface : AppColors.cream,
+            backgroundColor: isDark
+                ? Colors.white.withValues(alpha: 0.05)
+                : AppColors.softIce,
             valueColor: AlwaysStoppedAnimation<Color>(color),
             minHeight: 8,
           ),

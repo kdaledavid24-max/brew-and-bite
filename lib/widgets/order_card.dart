@@ -4,83 +4,202 @@ import '../models/order_model.dart';
 import '../utils/app_colors.dart';
 import '../utils/constants.dart';
 
-/// Order card widget for displaying orders in a list
+/// Aesthetic Foodpanda-style Order Card widget
 class OrderCard extends StatelessWidget {
-  final OrderModel order;
+  final Order order;
   final VoidCallback? onTap;
+  final Widget? trailingAction;
 
-  const OrderCard({super.key, required this.order, this.onTap});
+  const OrderCard({
+    super.key,
+    required this.order,
+    this.onTap,
+    this.trailingAction,
+  });
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final statusColor = AppColors.getStatusColor(order.status);
+    final statusIcon = AppColors.getStatusIcon(order.status);
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 14),
+      elevation: 1.5,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : AppColors.softBorder,
+          width: 1,
+        ),
+      ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Header: Order Number & Status Badge
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          color: AppColors.electricBlue.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.receipt_rounded,
+                          size: 18,
+                          color: AppColors.electricBlue,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        order.orderNumber,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
+                          color: isDark
+                              ? AppColors.darkText
+                              : AppColors.midnightNavy,
+                        ),
+                      ),
+                    ],
+                  ),
+                  _buildStatusBadge(order.status, statusColor, statusIcon),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Date & Customer
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    order.orderNumber,
+                    DateFormat('MMM dd, yyyy • hh:mm a').format(order.createdAt),
                     style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? AppColors.goldAccent : AppColors.coffeeBrown,
+                      fontSize: 12,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.lightTextSecondary,
                     ),
                   ),
-                  _buildStatusChip(order.status),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.05)
+                          : AppColors.softIce,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      order.orderType,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: order.orderType == AppConstants.orderTypeDelivery
+                            ? AppColors.electricBlue
+                            : AppColors.orangeAccent,
+                      ),
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                DateFormat('MMM dd, yyyy • hh:mm a').format(order.createdAt),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                ),
-              ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
+
+              // Customer Name & Contact
               Text(
                 order.customerName,
                 style: TextStyle(
                   fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: isDark ? AppColors.darkText : AppColors.lightText,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? AppColors.darkText : AppColors.midnightNavy,
                 ),
               ),
               const SizedBox(height: 4),
+
+              // Items breakdown summary
               Text(
-                '${order.orderType} • ${order.paymentMethod}',
+                order.itemsSummary,
                 style: TextStyle(
-                  fontSize: 12,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                  fontSize: 13,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.lightTextSecondary,
                 ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
+              const Divider(height: 1),
+              const SizedBox(height: 12),
+
+              // Footer: Total & View button
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    '${AppConstants.currencySymbol}${order.total.toStringAsFixed(0)}',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? AppColors.goldAccent : AppColors.coffeeBrown,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Total Amount',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.lightTextSecondary,
+                        ),
+                      ),
+                      Text(
+                        '${AppConstants.currencySymbol}${order.total.toStringAsFixed(0)}',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.electricBlue,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (trailingAction != null)
+                    trailingAction!
+                  else
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? AppColors.navyCard
+                            : AppColors.softIce,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        children: [
+                          Text(
+                            'VIEW ORDER',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.electricBlue,
+                            ),
+                          ),
+                          SizedBox(width: 4),
+                          Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            size: 12,
+                            color: AppColors.electricBlue,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  Icon(
-                    Icons.arrow_forward_ios,
-                    size: 16,
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                  ),
                 ],
               ),
             ],
@@ -90,46 +209,28 @@ class OrderCard extends StatelessWidget {
     );
   }
 
-  Widget _buildStatusChip(String status) {
-    Color color;
-    switch (status) {
-      case AppConstants.statusPending:
-        color = AppColors.warning;
-        break;
-      case AppConstants.statusConfirmed:
-        color = AppColors.info;
-        break;
-      case AppConstants.statusPreparing:
-        color = AppColors.orangeAccent;
-        break;
-      case AppConstants.statusReady:
-      case AppConstants.statusOutForDelivery:
-        color = AppColors.success;
-        break;
-      case AppConstants.statusCompleted:
-      case AppConstants.statusDelivered:
-        color = AppColors.success;
-        break;
-      case AppConstants.statusCancelled:
-        color = AppColors.error;
-        break;
-      default:
-        color = AppColors.info;
-    }
-
+  Widget _buildStatusBadge(String status, Color color, IconData icon) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
+        color: color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.25), width: 1),
       ),
-      child: Text(
-        status,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: color,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 5),
+          Text(
+            status,
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }
