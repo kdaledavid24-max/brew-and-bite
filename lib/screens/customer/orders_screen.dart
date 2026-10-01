@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
@@ -8,7 +10,10 @@ import '../../utils/constants.dart';
 import '../../widgets/order_card.dart';
 import 'order_details_screen.dart';
 
-/// Orders screen with tabs for Active, Completed, and Cancelled orders
+/// Orders screen with tabs for Active, Completed, and Cancelled orders.
+///
+/// The list auto-refreshes every few seconds, so when the admin updates
+/// an order status the customer sees the change without doing anything.
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
 
@@ -21,29 +26,38 @@ class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderSt
   final OrderService _orderService = OrderService();
   List<OrderModel> _orders = [];
   bool _isLoading = true;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _loadOrders();
+
+    // Auto-refresh so admin status updates show up live
+    _refreshTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (mounted) _loadOrders(silent: true);
+    });
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _tabController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadOrders() async {
-    setState(() => _isLoading = true);
+  /// Load the customer's orders.
+  /// [silent] = refresh in the background without showing the spinner.
+  Future<void> _loadOrders({bool silent = false}) async {
+    if (!silent && mounted) setState(() => _isLoading = true);
     try {
       final user = context.read<AuthProvider>().currentUser;
       if (user != null) {
         _orders = await _orderService.getOrdersByUser(user.id!);
       }
     } catch (e) {
-      // Handle error silently
+      // Keep the previous list if loading fails
     }
     if (mounted) setState(() => _isLoading = false);
   }

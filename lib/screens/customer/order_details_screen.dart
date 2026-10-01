@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/order_model.dart';
@@ -5,8 +7,12 @@ import '../../models/order_item_model.dart';
 import '../../services/order_service.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/constants.dart';
+import '../../widgets/status_tracker.dart';
 
-/// Order details screen showing complete order information and status tracker
+/// Order details screen showing complete order information and status tracker.
+///
+/// Auto-refreshes every few seconds so the timeline advances live when
+/// the admin updates the order status.
 class OrderDetailsScreen extends StatefulWidget {
   final int? orderId;
   final String? orderNumber;
@@ -22,15 +28,29 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   OrderModel? _order;
   List<OrderItemModel> _items = [];
   bool _isLoading = true;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _loadOrder();
+
+    // Auto-refresh so the status tracker moves when the admin updates it
+    _refreshTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (mounted) _loadOrder(silent: true);
+    });
   }
 
-  Future<void> _loadOrder() async {
-    setState(() => _isLoading = true);
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  /// Reload this order and its items.
+  /// [silent] = refresh in the background without showing the spinner.
+  Future<void> _loadOrder({bool silent = false}) async {
+    if (!silent && mounted) setState(() => _isLoading = true);
     try {
       OrderModel? order;
       if (widget.orderId != null) {
@@ -49,7 +69,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         _items = await _orderService.getOrderItems(order.id!);
       }
     } catch (e) {
-      // Handle error
+      // Keep the previous data if loading fails
     }
     if (mounted) setState(() => _isLoading = false);
   }
@@ -86,8 +106,11 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Status tracker
-            _buildStatusTracker(isDark),
+            // Status tracker (shared widget - same view the admin sees)
+            StatusTracker(
+              status: _order!.status,
+              orderType: _order!.orderType,
+            ),
             const SizedBox(height: 24),
 
             // Order info
@@ -116,124 +139,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
             _buildPriceRow('Total', _order!.total, isDark, isTotal: true),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildStatusTracker(bool isDark) {
-    final isDelivery = _order!.orderType == AppConstants.orderTypeDelivery;
-    final statuses = isDelivery
-        ? [AppConstants.statusPending, AppConstants.statusConfirmed, AppConstants.statusPreparing, AppConstants.statusOutForDelivery, AppConstants.statusDelivered]
-        : [AppConstants.statusPending, AppConstants.statusConfirmed, AppConstants.statusPreparing, AppConstants.statusReady, AppConstants.statusCompleted];
-
-    final currentIndex = statuses.indexOf(_order!.status);
-    final isCancelled = _order!.status == AppConstants.statusCancelled;
-
-    if (isCancelled) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.error.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Row(
-          children: [
-            Icon(Icons.cancel, color: AppColors.error),
-            SizedBox(width: 12),
-            Text(
-              'This order has been cancelled.',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: AppColors.error,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : AppColors.cream,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          for (int i = 0; i < statuses.length; i++)
-            _buildStatusStep(
-              status: statuses[i],
-              isCompleted: i <= currentIndex,
-              isCurrent: i == currentIndex,
-              isLast: i == statuses.length - 1,
-              isDark: isDark,
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusStep({
-    required String status,
-    required bool isCompleted,
-    required bool isCurrent,
-    required bool isLast,
-    required bool isDark,
-  }) {
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Icon and line
-          Column(
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: isCompleted
-                      ? AppColors.success
-                      : (isDark ? AppColors.darkSurface : AppColors.warmBeige),
-                  shape: BoxShape.circle,
-                  border: isCompleted
-                      ? null
-                      : Border.all(color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
-                ),
-                child: isCompleted
-                    ? const Icon(Icons.check, size: 16, color: Colors.white)
-                    : Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: isCurrent ? AppColors.success : Colors.transparent,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-              ),
-              if (!isLast)
-                Container(
-                  width: 2,
-                  height: 30,
-                  color: isCompleted ? AppColors.success : (isDark ? AppColors.darkTextSecondary : AppColors.warmBeige),
-                ),
-            ],
-          ),
-          const SizedBox(width: 12),
-          // Status text
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              status,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                color: isCompleted
-                    ? (isDark ? AppColors.darkText : AppColors.lightText)
-                    : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

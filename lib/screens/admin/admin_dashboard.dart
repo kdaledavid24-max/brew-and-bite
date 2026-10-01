@@ -152,25 +152,29 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       subtitle: 'Add, edit, or remove products',
                       icon: Icons.inventory_2_outlined,
                       color: AppColors.coffeeBrown,
-                      onTap: () {
-                        Navigator.push(
+                      onTap: () async {
+                        await Navigator.push(
                           context,
                           MaterialPageRoute(builder: (context) => const ManageProductsScreen()),
                         );
+                        // Refresh stats after coming back
+                        if (mounted) _loadStats();
                       },
                     ),
                     _buildActionCard(
                       context,
                       isDark,
                       title: 'Manage Orders',
-                      subtitle: 'View and update order status',
+                      subtitle: 'Track and update customer orders',
                       icon: Icons.receipt_long_outlined,
                       color: AppColors.info,
-                      onTap: () {
-                        Navigator.push(
+                      onTap: () async {
+                        await Navigator.push(
                           context,
                           MaterialPageRoute(builder: (context) => const ManageOrdersScreen()),
                         );
+                        // Refresh stats after coming back
+                        if (mounted) _loadStats();
                       },
                     ),
                     _buildActionCard(
@@ -180,11 +184,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       subtitle: 'View customer information',
                       icon: Icons.people_outlined,
                       color: AppColors.orangeAccent,
-                      onTap: () {
-                        Navigator.push(
+                      onTap: () async {
+                        await Navigator.push(
                           context,
                           MaterialPageRoute(builder: (context) => const ManageUsersScreen()),
                         );
+                        if (mounted) _loadStats();
                       },
                     ),
                     _buildActionCard(
@@ -194,11 +199,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       subtitle: 'View sales and order analytics',
                       icon: Icons.analytics_outlined,
                       color: AppColors.success,
-                      onTap: () {
-                        Navigator.push(
+                      onTap: () async {
+                        await Navigator.push(
                           context,
                           MaterialPageRoute(builder: (context) => const SalesScreen()),
                         );
+                        if (mounted) _loadStats();
                       },
                     ),
                   ],
